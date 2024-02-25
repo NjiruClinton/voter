@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "396372820410",
+    "project_id": "voter-3de6d",
+    "storage_bucket": "voter-3de6d.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:396372820410:android:ead5d41a34051ac5b59d83",
+        "android_client_info": {
+          "package_name": "com.example.voter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2s7zFnh3KQO57mhGXHoIc5-X3KlvKiuA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
