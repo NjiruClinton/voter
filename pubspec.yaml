@@ -39,7 +39,12 @@ dependencies:
   dio: ^5.4.0
   firebase_core: ^2.22.0
   firebase_auth: ^4.13.0
-  google_fonts: ^6.1.0
+  google_fonts: 6.1.0
+  cloud_firestore: ^4.13.0
+  firebase_storage: ^11.5.0
+  file_picker: ^6.2.0
+  uuid: ^4.1.0
+  permission_handler: ^11.0.0
 
 dev_dependencies:
   flutter_test:

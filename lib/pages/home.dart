@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:voter/pages/apply_candidate.dart';
 import 'package:voter/pages/electiondetails.dart';
 import 'package:voter/pages/login.dart';
 
@@ -91,11 +92,20 @@ class _HomeState extends State<Home> {
           child: ListView(
             children: [
               ListTile(
-                title: Text('Home'),
+                title: Text('Home', style: GoogleFonts.poppins(),),
                 onTap: () {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (context) => Home()),
+                  );
+                },
+              ),
+              ListTile(
+                title: Text('Elections', style: GoogleFonts.poppins(),),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => ApplyCandidate()),
                   );
                 },
               ),

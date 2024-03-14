@@ -132,7 +132,6 @@ class _LoginState extends State<Login> {
             Text("Welcome back", style: GoogleFonts.roboto(fontSize: 35, fontWeight: FontWeight.bold),),
           //   logo and 2 inputs and a button
             Image.asset('assets/images/voting-logo.jpg'),
-
             SizedBox(height: 20),
           _errorMessage(),
           Padding(
