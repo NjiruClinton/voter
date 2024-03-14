@@ -17,7 +17,6 @@ class _HomeState extends State<Home> {
 
   final FirebaseAuth auth = FirebaseAuth.instance;
 
-  // widget for candidate positions
   Widget _positionCard(){
     return(
 
@@ -47,6 +46,10 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
+
+    // if (user != null && !user.emailVerified) {
+    //   user.sendEmailVerification();
+    // }
     // if no user is signed in, push replacement to login page
     if(user == null){
       Navigator.pushReplacement(

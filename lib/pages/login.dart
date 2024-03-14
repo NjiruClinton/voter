@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -18,45 +19,8 @@ class Login extends StatefulWidget {
 
 class _LoginState extends State<Login> {
 
-  // text controllers
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
-
-  // send login request to 127.0.0.1:8000/login
-
-  // var url = Uri.parse('https://8d28-102-219-208-154.ngrok-free.app/login');
-  //
-  // Future<http.Response> _submit() async {
-  //   var response = await http.post(url, body: {
-  //     'username': _emailController.text,
-  //     'password': _passwordController.text
-  //   });
-  //
-  //   if (response.statusCode == 200) {
-  //     //   navigate to home page
-  //     Navigator.push(context, MaterialPageRoute(builder: (context) => Home()));
-  //   } else {
-  //     //   show error message
-  //     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-  //       content: Text('Invalid email or password'),
-  //       backgroundColor: Colors.red,
-  //     ));
-  //   }
-  //
-  //   return http.post(
-  //     Uri.parse('https://8d28-102-219-208-154.ngrok-free.app/login/'),
-  //     headers: <String, String>{
-  //       'Content-Type': 'application/json; charset=UTF-8',
-  //     },
-  //     body: jsonEncode(<String, String>{
-  //       'username': _emailController.text,
-  //       'password': _passwordController.text,
-  //     }),
-  //
-  //   );
-  //
-  // }
 
   String? errorMessage = '';
 
@@ -210,12 +174,310 @@ class _LoginState extends State<Login> {
                   )
               )
           ),
-        )
+        ),
 
-
+          //   or create account
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text("Don't have an account? ", style: TextStyle(color: Colors.grey.shade600),),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => Register()),
+                    );
+                  },
+                  child: Text("Register as a voter", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),),
+                ),
+              ],
+            ),
           ],
         ),
       )
+    );
+  }
+}
+
+
+class Register extends StatefulWidget {
+  const Register({super.key});
+
+  @override
+  State<Register> createState() => _RegisterState();
+}
+
+class _RegisterState extends State<Register> {
+  final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _studentIdController = TextEditingController();
+
+
+  String? errorMessage = '';
+
+  Future<void> signUserUp() async {
+    if (_formKey.currentState!.validate()) {
+      try {
+        await Auth().createUserWithEmailAndPassword(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+        await FirebaseFirestore.instance.collection('voters').add({
+          'email': _emailController.text,
+          'name': _nameController.text,
+          'studentId': _studentIdController.text,
+          'createdAt': FieldValue.serverTimestamp(),
+          'status': 'pending',
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registered successfully')),
+        );
+        _emailController.clear();
+        _passwordController.clear();
+        _confirmPasswordController.clear();
+        _nameController.clear();
+        _studentIdController.clear();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const Login()),
+        );
+      } on FirebaseAuthException catch (e) {
+        setState(() {
+          print(e.code);
+          errorMessage = e.message;
+        });
+
+
+      } on FirebaseAuthException catch (e) {
+        setState(() {
+          print(e.code);
+          errorMessage = e.message;
+        });
+      }
+    }
+  }
+
+  Widget _errorMessage() {
+    return Text(
+      errorMessage == "" ? "" : 'Humm ? $errorMessage',
+      style: const TextStyle(color: Colors.redAccent),
+    );
+  }
+
+
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+        appBar: AppBar(
+          // title: Text('Login'),
+        ),
+        body: SingleChildScrollView(
+          child: Column(
+            children: [
+              Text("Welcome back", style: GoogleFonts.roboto(fontSize: 35, fontWeight: FontWeight.bold),),
+              //   logo and 2 inputs and a button
+              Image.asset('assets/images/voting-logo.jpg'),
+              SizedBox(height: 20),
+              _errorMessage(),
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                      child: TextFormField(
+                          controller: _emailController,
+                          obscureText: false,
+                          decoration: InputDecoration(
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.green.shade400),
+                            ),
+                            fillColor: Colors.grey.shade200,
+                            filled: true,
+                            hintText: "Email",
+                            hintStyle: TextStyle(color: Colors.grey.shade500),
+                          ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your Email';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    SizedBox(height: 20),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                      child: TextFormField(
+                        controller: _nameController,
+                        obscureText: false,
+                        decoration: InputDecoration(
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.green.shade400),
+                          ),
+                          fillColor: Colors.grey.shade200,
+                          filled: true,
+                          hintText: "Name",
+                          hintStyle: TextStyle(color: Colors.grey.shade500),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your name';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    SizedBox(height: 20),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                      child: TextFormField(
+                        controller: _studentIdController,
+                        obscureText: false,
+                        decoration: InputDecoration(
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.green.shade400),
+                          ),
+                          fillColor: Colors.grey.shade200,
+                          filled: true,
+                          hintText: "Student ID",
+                          hintStyle: TextStyle(color: Colors.grey.shade500),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your student ID';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    SizedBox(height: 20),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                      child: TextFormField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.green.shade400),
+                          ),
+                          fillColor: Colors.grey.shade200,
+                          filled: true,
+                          hintText: "Password",
+                          hintStyle: TextStyle(color: Colors.grey.shade500),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter Password';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+
+                    SizedBox(height: 20),
+
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                      child: TextFormField(
+                        controller: _confirmPasswordController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.green.shade400),
+                          ),
+                          fillColor: Colors.grey.shade200,
+                          filled: true,
+                          hintText: "Confirm Password",
+                          hintStyle: TextStyle(color: Colors.grey.shade500),
+                        ),
+                        validator: (value) {
+                          if(value == null || value.isEmpty) {
+                            return 'Please confirm your password';
+                          } else if (value != _passwordController.text) {
+                            return 'Passwords do not match';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+
+                    SizedBox(height: 20),
+
+                    GestureDetector(
+                      onTap: () {
+                        if (_formKey.currentState!.validate()) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Processing Data')),
+                          );
+                          signUserUp();
+                        }
+                      },
+                      child: Container(
+                          padding: EdgeInsets.all(25),
+                          margin: EdgeInsets.symmetric(horizontal: 25),
+                          decoration: BoxDecoration(color: Colors.black,
+                              borderRadius: BorderRadius.circular(8)),
+                          child: Center(
+                              child: Text(
+                                "Register",
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                              )
+                          )
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+
+              //   or create account
+              SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text("Have an account? ", style: TextStyle(color: Colors.grey.shade600),),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => Login()),
+                      );
+                    },
+                    child: Text("Sign in now", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),),
+                  ),
+                ],
+              ),
+
+
+            ],
+          ),
+        )
     );
   }
 }

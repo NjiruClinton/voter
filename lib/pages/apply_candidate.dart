@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -320,9 +321,42 @@ class _ApplyFormState extends State<ApplyForm> {
 
 
   void submitForm() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please login to apply')),
+      );
+      return;
+    }
+
+    QuerySnapshot voterQuerySnapshot = await FirebaseFirestore.instance
+        .collection('voters')
+        .where('email', isEqualTo: user.email)
+        .get();
+
+    if (voterQuerySnapshot.docs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You are not authorized to apply')),
+      );
+      return;
+    }
+
+    DocumentSnapshot voterDoc = voterQuerySnapshot.docs.first;
+    String studentId = voterDoc.get('studentId');
+    String firstName = voterDoc.get('first_name');
+    String lastName = voterDoc.get('last_name');
+
+    if (voterDoc.get('status') != 'approved') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your voter account is not approved yet')),
+      );
+      return;
+    }
+
+
     QuerySnapshot querySnapshot = await FirebaseFirestore.instance
         .collection('applications')
-        .where('student_id', isEqualTo: _studentIdController.text)
+        .where('email', isEqualTo: user.email)
         .get();
 
     if (querySnapshot.docs.isNotEmpty) {
@@ -330,16 +364,20 @@ class _ApplyFormState extends State<ApplyForm> {
         const SnackBar(content: Text('Student already applied')),
       );
       return;
-    };
+    }
 
     if (_formKey.currentState!.validate()) {
       await uploadFilesToFirebase();
+      print('Resume Download URL: $resumeDownloadURL');
+      print('Transcript Download URL: $transcriptDownloadURL');
+      print('Passport Image Download URL: $passportImageDownloadURL');
       print("submitting...");
       try{
       await FirebaseFirestore.instance.collection('applications').add({
-        'first_name': _firstNameController.text,
-        'last_name': _lastNameController.text,
-        'student_id': _studentIdController.text,
+        'first_name': firstName,
+        'last_name': lastName,
+        'student_id': studentId,
+        'email': user.email,
         'why': _whyController.text,
         'plans': _plansController.text,
         'position': widget.position['position'],
@@ -350,14 +388,14 @@ class _ApplyFormState extends State<ApplyForm> {
         'transcript': transcriptDownloadURL,
         'passport_image': passportImageDownloadURL,
         'status': 'pending',
-        'createdAt': DateTime.now(),
+        'createdAt': FieldValue.serverTimestamp(),
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Application submitted')),
       );
-      _firstNameController.clear();
-      _lastNameController.clear();
-      _studentIdController.clear();
+      // _firstNameController.clear();
+      // _lastNameController.clear();
+      // _studentIdController.clear();
       _whyController.clear();
       _plansController.clear();
       resumeFile = null;
@@ -400,63 +438,63 @@ class _ApplyFormState extends State<ApplyForm> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      TextFormField(
-                        controller: _firstNameController,
-                        maxLines: 1,
-                        style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                        decoration: InputDecoration(
-                          hintText: "First name",
-                          hintStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your first name';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 20),
-                      TextFormField(
-                        controller: _lastNameController,
-                        maxLines: 1,
-                        style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                        decoration: InputDecoration(
-                          hintText: "Last name",
-                          hintStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your last name';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 20),
-                      TextFormField(
-                        controller: _studentIdController,
-                        maxLines: 1,
-                        style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                        decoration: InputDecoration(
-                          hintText: "Student ID",
-                          hintStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your student ID';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 20),
+                      // TextFormField(
+                      //   controller: _firstNameController,
+                      //   maxLines: 1,
+                      //   style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
+                      //   decoration: InputDecoration(
+                      //     hintText: "First name",
+                      //     hintStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
+                      //     border: OutlineInputBorder(
+                      //       borderRadius: BorderRadius.circular(8),
+                      //     ),
+                      //   ),
+                      //   validator: (value) {
+                      //     if (value == null || value.isEmpty) {
+                      //       return 'Please enter your first name';
+                      //     }
+                      //     return null;
+                      //   },
+                      // ),
+                      // SizedBox(height: 20),
+                      // TextFormField(
+                      //   controller: _lastNameController,
+                      //   maxLines: 1,
+                      //   style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
+                      //   decoration: InputDecoration(
+                      //     hintText: "Last name",
+                      //     hintStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
+                      //     border: OutlineInputBorder(
+                      //       borderRadius: BorderRadius.circular(8),
+                      //     ),
+                      //   ),
+                      //   validator: (value) {
+                      //     if (value == null || value.isEmpty) {
+                      //       return 'Please enter your last name';
+                      //     }
+                      //     return null;
+                      //   },
+                      // ),
+                      // SizedBox(height: 20),
+                      // TextFormField(
+                      //   controller: _studentIdController,
+                      //   maxLines: 1,
+                      //   style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
+                      //   decoration: InputDecoration(
+                      //     hintText: "Student ID",
+                      //     hintStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
+                      //     border: OutlineInputBorder(
+                      //       borderRadius: BorderRadius.circular(8),
+                      //     ),
+                      //   ),
+                      //   validator: (value) {
+                      //     if (value == null || value.isEmpty) {
+                      //       return 'Please enter your student ID';
+                      //     }
+                      //     return null;
+                      //   },
+                      // ),
+                      // SizedBox(height: 20),
                       TextFormField(
                         controller: _whyController,
                         maxLines: 5,
@@ -548,10 +586,6 @@ class _ApplyFormState extends State<ApplyForm> {
                                 );
                               }
                               submitForm();
-
-                              print('Resume Download URL: $resumeDownloadURL');
-                              print('Transcript Download URL: $transcriptDownloadURL');
-                              print('Passport Image Download URL: $passportImageDownloadURL');
                             },
                             child: Text('Submit', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),),
                           ),
