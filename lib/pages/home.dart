@@ -1,6 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:voter/pages/apply_candidate.dart';
 import 'package:voter/pages/electiondetails.dart';
 import 'package:voter/pages/login.dart';
@@ -43,19 +46,47 @@ class _HomeState extends State<Home> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final User? user = FirebaseAuth.instance.currentUser;
 
-    // if (user != null && !user.emailVerified) {
-    //   user.sendEmailVerification();
-    // }
-    // if no user is signed in, push replacement to login page
+  final User? user = FirebaseAuth.instance.currentUser;
+  String? _name;
+
+  @override
+  void initState() {
+    super.initState();
+    _getName();
+  }
+
+  Future<void> _getName() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final QuerySnapshot<Map<String, dynamic>> snapshot = await FirebaseFirestore.instance
+          .collection('voters')
+          .where('email', isEqualTo: user.email)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        setState(() {
+          _name = snapshot.docs.first.data()['name']; // Assuming 'name' is the field in your Firestore document
+        });
+      }
+    }
+  }
+
+
+@override
+  Widget build(BuildContext context) {
+
     if(user == null){
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => Login()),
       );
+    }
+
+    // remove shared preferences 'votes' data
+    Future<void> removeData() async {
+      final prefs = await SharedPreferences.getInstance();
+      prefs.remove('votes');
     }
 
 
@@ -82,7 +113,7 @@ class _HomeState extends State<Home> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => ElectionDetails()),
+                MaterialPageRoute(builder: (context) => AvailableElections()),
               );
             },
             child: Center(
@@ -116,6 +147,7 @@ class _HomeState extends State<Home> {
               ListTile(
                 title: Text('Sign Out', style: GoogleFonts.poppins(color: Colors.red.shade600),),
                 onTap: () {
+                  removeData();
                   auth.signOut();
                   Navigator.pushReplacement(
                     context,
@@ -144,7 +176,9 @@ class _HomeState extends State<Home> {
                 ),
                 SizedBox(height: 20,),
                 Center(
-                  child: Text('Welcome, Clinton', style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w500),),
+                  child:
+                  Text( _name != null ? 'Welcome, ${_name}' : 'Welcome',
+                    style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w500),),
                 ),
                 SizedBox(height: 20,),
                 // Text("Its time to vote, here's what on the ballot", style: GoogleFonts.lato(fontSize: 20, fontWeight: FontWeight.w500),),

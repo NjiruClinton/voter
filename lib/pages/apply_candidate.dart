@@ -25,6 +25,7 @@ class _ApplyCandidateState extends State<ApplyCandidate> {
 
   // List<Map<String, dynamic>> elections = []; // supposed to be an object of election data
   var elections = [];
+  // List<Map<String, dynamic>> elections = [];
   @override
   void initState() {
     super.initState();
@@ -32,14 +33,16 @@ class _ApplyCandidateState extends State<ApplyCandidate> {
   }
 
 Future<void> getPositions() async {
-    await Firebase.initializeApp();
-    await FirebaseFirestore.instance.collection('elections').get().then((QuerySnapshot querySnapshot) {
-      for (var doc in querySnapshot.docs) {
-        setState(() {
-          elections.add(doc.data());
-        });
-      }
-    });
+  await Firebase.initializeApp();
+  await FirebaseFirestore.instance.collection('elections').get().then((QuerySnapshot querySnapshot) {
+    for (var doc in querySnapshot.docs) {
+      setState(() {
+        var electionData = doc.data() as Map<String, dynamic>;
+        electionData['id'] = doc.id;
+        elections.add(electionData);
+      });
+    }
+  });
 }
 
   @override
@@ -64,17 +67,69 @@ Future<void> getPositions() async {
                   itemCount: elections.length,
                   itemBuilder: (context, index) {
                     final election = elections[index];
-                    return GestureDetector(
-                      child: ElectionItem(
-                        name: election['election_name'],
-                        description: election['election_description'],
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 10),
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => ChoosePosition(election: election,)),
-                        );
-                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                election['election_name'],
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              //   active text and icon
+                              Icon(Icons.circle, color: Colors.green.shade400, size: 20),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          Text(election['election_description']),
+                          SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    primary: Colors.blueAccent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  child: Text("Apply as a voter", style: GoogleFonts.poppins( fontWeight: FontWeight.bold, color: Colors.white),),
+                                  onPressed: (){
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => ApplyVoter(election: election)),
+                                    );
+                                  }),
+                              ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    primary: Colors.blueAccent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  child: Text("Apply for candidacy", style: GoogleFonts.poppins( fontWeight: FontWeight.bold, color: Colors.white),),
+                                  onPressed: (){
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => ChoosePosition(election: election)),
+                                    );
+                                  })
+                            ],
+                          ),
+
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -126,6 +181,34 @@ class ElectionItem extends StatelessWidget {
           ),
           SizedBox(height: 8),
           Text(description),
+          SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    primary: Colors.blueAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text("Apply as a voter", style: GoogleFonts.poppins( fontWeight: FontWeight.bold, color: Colors.white),),
+                  onPressed: (){
+
+                  }),
+              ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    primary: Colors.blueAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text("Apply for candidacy", style: GoogleFonts.poppins( fontWeight: FontWeight.bold, color: Colors.white),),
+                  onPressed: (){
+              })
+            ],
+          ),
+
         ],
       ),
     );
@@ -247,9 +330,6 @@ class _ApplyFormState extends State<ApplyForm> {
 
   final _formKey = GlobalKey<FormState>();
   // textControllers
-  TextEditingController _firstNameController = TextEditingController();
-  TextEditingController _lastNameController = TextEditingController();
-  TextEditingController _studentIdController = TextEditingController();
   TextEditingController _whyController = TextEditingController();
   TextEditingController _plansController = TextEditingController();
 
@@ -342,9 +422,6 @@ class _ApplyFormState extends State<ApplyForm> {
     }
 
     DocumentSnapshot voterDoc = voterQuerySnapshot.docs.first;
-    String studentId = voterDoc.get('studentId');
-    String firstName = voterDoc.get('first_name');
-    String lastName = voterDoc.get('last_name');
 
     if (voterDoc.get('status') != 'approved') {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -374,16 +451,11 @@ class _ApplyFormState extends State<ApplyForm> {
       print("submitting...");
       try{
       await FirebaseFirestore.instance.collection('applications').add({
-        'first_name': firstName,
-        'last_name': lastName,
-        'student_id': studentId,
         'email': user.email,
         'why': _whyController.text,
         'plans': _plansController.text,
         'position': widget.position['position'],
-        'election': widget.election['election_name'],
-        'election_end_date': widget.election['election_end_date'],
-        'election_start_date': widget.election['election_start_date'],
+        'election_id': widget.election['id'],
         'resume': resumeDownloadURL,
         'transcript': transcriptDownloadURL,
         'passport_image': passportImageDownloadURL,
@@ -393,9 +465,6 @@ class _ApplyFormState extends State<ApplyForm> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Application submitted')),
       );
-      // _firstNameController.clear();
-      // _lastNameController.clear();
-      // _studentIdController.clear();
       _whyController.clear();
       _plansController.clear();
       resumeFile = null;
@@ -438,63 +507,6 @@ class _ApplyFormState extends State<ApplyForm> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      // TextFormField(
-                      //   controller: _firstNameController,
-                      //   maxLines: 1,
-                      //   style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                      //   decoration: InputDecoration(
-                      //     hintText: "First name",
-                      //     hintStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                      //     border: OutlineInputBorder(
-                      //       borderRadius: BorderRadius.circular(8),
-                      //     ),
-                      //   ),
-                      //   validator: (value) {
-                      //     if (value == null || value.isEmpty) {
-                      //       return 'Please enter your first name';
-                      //     }
-                      //     return null;
-                      //   },
-                      // ),
-                      // SizedBox(height: 20),
-                      // TextFormField(
-                      //   controller: _lastNameController,
-                      //   maxLines: 1,
-                      //   style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                      //   decoration: InputDecoration(
-                      //     hintText: "Last name",
-                      //     hintStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                      //     border: OutlineInputBorder(
-                      //       borderRadius: BorderRadius.circular(8),
-                      //     ),
-                      //   ),
-                      //   validator: (value) {
-                      //     if (value == null || value.isEmpty) {
-                      //       return 'Please enter your last name';
-                      //     }
-                      //     return null;
-                      //   },
-                      // ),
-                      // SizedBox(height: 20),
-                      // TextFormField(
-                      //   controller: _studentIdController,
-                      //   maxLines: 1,
-                      //   style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                      //   decoration: InputDecoration(
-                      //     hintText: "Student ID",
-                      //     hintStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500),
-                      //     border: OutlineInputBorder(
-                      //       borderRadius: BorderRadius.circular(8),
-                      //     ),
-                      //   ),
-                      //   validator: (value) {
-                      //     if (value == null || value.isEmpty) {
-                      //       return 'Please enter your student ID';
-                      //     }
-                      //     return null;
-                      //   },
-                      // ),
-                      // SizedBox(height: 20),
                       TextFormField(
                         controller: _whyController,
                         maxLines: 5,
@@ -592,6 +604,109 @@ class _ApplyFormState extends State<ApplyForm> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+                SizedBox(height: 30),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ApplyVoter extends StatefulWidget {
+  const ApplyVoter({super.key, required this.election});
+
+  final Map<String, dynamic> election;
+
+  @override
+  State<ApplyVoter> createState() => _ApplyVoterState();
+}
+
+class _ApplyVoterState extends State<ApplyVoter> {
+
+  void applyAsVoter() async {
+
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please login to apply')),
+      );
+      return;
+    }
+
+    QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+        .collection('voters')
+        .where('email', isEqualTo: user.email)
+        .get();
+
+    if (querySnapshot.docs.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You are already a voter')),
+      );
+      return;
+    }
+
+    try{
+      await FirebaseFirestore.instance.collection('voters').add({
+        'email': user.email,
+        'election_id': widget.election['id'],
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Application submitted')),
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => Home())
+      );
+    } catch (e) {
+      print('Error submitting application: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error submitting application')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Apply', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+      ),
+      body: SingleChildScrollView(
+        child: SafeArea(
+          child: Container(
+            margin: EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Apply as a voter", style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w500),),
+                SizedBox(height: 20),
+                Text("You are applying to vote in the ${widget.election['election_name']}.", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),),
+                SizedBox(height: 20),
+                Center(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        primary: Colors.blueAccent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Processing Data')),
+                        );
+                        applyAsVoter();
+                      },
+                      child: Text('Submit', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),),
+                    ),
                   ),
                 ),
                 SizedBox(height: 30),

@@ -1,5 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import 'electiondetails.dart';
+import 'home.dart';
 
 class SubmitVotes extends StatefulWidget {
   const SubmitVotes({super.key});
@@ -9,6 +17,108 @@ class SubmitVotes extends StatefulWidget {
 }
 
 class _SubmitVotesState extends State<SubmitVotes> {
+
+  List<String> currentVotes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVotesFromSharedPreferences();
+  }
+
+
+  Future<void> _loadVotesFromSharedPreferences() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final List<String>? votesStringList = prefs.getStringList('votes');
+    if (votesStringList != null) {
+      currentVotes = votesStringList;
+    }
+    setState(() {
+      currentVotes = currentVotes;
+    });
+    // print(currentVotes);
+  }
+
+
+  Future<void> _submitVotes() async {
+    final election_id = jsonDecode(currentVotes[0])['election_id'];
+    final election = await FirebaseFirestore.instance.collection('elections').doc(election_id).get();
+    // print(election.data());
+
+    final user = FirebaseAuth.instance.currentUser;
+    final voterDoc = await FirebaseFirestore.instance.collection('voters').where('email', isEqualTo: user?.email).get();
+    if (voterDoc.docs[0].data()['voted'] == true) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text("You have already voted", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),),
+            content: Text("You cannot vote again", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: Text('Close', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent),),
+              ),
+            ],
+          );
+        }
+      );
+      return;
+    }
+
+
+    for (var vote in currentVotes) {
+      final voteMap = jsonDecode(vote);
+      final position = voteMap['position'];
+      final email = voteMap['email'];
+
+      final electionDoc = await FirebaseFirestore.instance.collection('elections').doc(election_id).get();
+      final electionData = electionDoc.data();
+      final positionVotes = electionData?[position];
+      if (positionVotes != null) {
+        if (positionVotes[email] != null) {
+          final currentVotes = positionVotes[email];
+          electionDoc.reference.set({
+            position: {
+              email: currentVotes + 1
+            }
+          }, SetOptions(merge: true));
+        } else {
+          electionDoc.reference.set({
+            position: {
+              email: 1
+            }
+          }, SetOptions(merge: true));
+        }
+      } else {
+        electionDoc.reference.set({
+          position: {
+            email: 1
+          }
+        }, SetOptions(merge: true));
+      }
+    }
+
+    final voter = await FirebaseFirestore.instance.collection('voters').where('email', isEqualTo: user?.email).get();
+    voter.docs.forEach((doc) {
+      doc.reference.update({
+        'voted': true
+      });
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Votes submitted', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),),
+        backgroundColor: Colors.green,
+      )
+    );
+
+  }
+
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -35,10 +145,10 @@ class _SubmitVotesState extends State<SubmitVotes> {
                   ),
                 ),
                 onPressed: () {
-                  // Navigator.push(
-                  //   context,
-                  //   MaterialPageRoute(builder: (context) => SubmitVotes()),
-                  // );
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => AvailableElections()),
+                  );
                 },
                 child: Center(
                   child: Text('Edit my votes', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),),
@@ -52,10 +162,33 @@ class _SubmitVotesState extends State<SubmitVotes> {
                   ),
                 ),
                 onPressed: () {
-                  // Navigator.push(
-                  //   context,
-                  //   MaterialPageRoute(builder: (context) => SubmitVotes()),
-                  // );
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: Text("Confirm submission", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),),
+                        content: Text("Your vote is final and cannot be changed. Are you sure you want to submit it?", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            child: Text('Cancel', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.redAccent),),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              _submitVotes();
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (context) => Home()),
+                              );
+                            },
+                            child: Text('Submit', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent),),
+                          ),
+                        ],
+                      );
+                    }
+                  );
                 },
                 child: Center(
                   child: Text('Submit', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),),
@@ -76,13 +209,24 @@ class _SubmitVotesState extends State<SubmitVotes> {
                 Text("Your vote is final and cannot be changed. Are you sure you want to submit it?", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),),
               SizedBox(height: 20),
               //   listTile with position and the candidate selected
-                ListTile(
-                  leading: CircleAvatar(
-                      radius: 30,
-                      backgroundImage: AssetImage('assets/images/student.jpeg')
-                  ),
-                  title: Text("School Presidency", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold)),
-                  subtitle: Text('Clinton Njiru', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  itemCount: currentVotes.length,
+                  itemBuilder: (context, index) {
+                    final vote = jsonDecode(currentVotes[index]);
+                    return ListTile(
+                        leading: CircleAvatar(
+                                radius: 30,
+                                backgroundImage: NetworkImage(vote['image'])
+                            ),
+                      title: Text(vote['position'], style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold)),
+                      subtitle: Text("${vote['name']} ${vote['last_name']}", style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                    );
+                  },
+                  separatorBuilder: (context, index) {
+                    return Divider();
+                  },
                 ),
 
               ],

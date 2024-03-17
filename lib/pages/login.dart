@@ -25,15 +25,40 @@ class _LoginState extends State<Login> {
   String? errorMessage = '';
 
   Future<void> signUserIn() async {
+
     try {
-      await Auth().signInWithEmailAndPassword(
+      final authResult = await Auth().signInWithEmailAndPassword(
         email: _emailController.text,
         password: _passwordController.text,
       );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const Home()),
-      );
+      final user = authResult;
+
+      if (user != null && !user.emailVerified) {
+        await user.sendEmailVerification();
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('Email Verification Required'),
+              content: Text('A verification email has been sent to ${user.email}. Please verify your email before signing in.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const Home()),
+        );
+      }
+
     } on FirebaseAuthException catch (e) {
       setState(() {
         print(e.code);
@@ -73,7 +98,6 @@ class _LoginState extends State<Login> {
             TextButton(
               child: const Text('Send'),
               onPressed: () {
-                // send reset password email
                 Auth().sendPasswordResetEmail(email: _emailController.text);
                 Navigator.of(context).pop();
               },
@@ -189,7 +213,7 @@ class _LoginState extends State<Login> {
                       MaterialPageRoute(builder: (context) => Register()),
                     );
                   },
-                  child: Text("Register as a voter", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),),
+                  child: Text("Register as a student", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),),
                 ),
               ],
             ),
@@ -215,6 +239,7 @@ class _RegisterState extends State<Register> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _studentIdController = TextEditingController();
 
 
@@ -227,12 +252,13 @@ class _RegisterState extends State<Register> {
           email: _emailController.text,
           password: _passwordController.text,
         );
-        await FirebaseFirestore.instance.collection('voters').add({
+        await FirebaseFirestore.instance.collection('students').add({
           'email': _emailController.text,
           'name': _nameController.text,
+          'last_name': _lastNameController.text,
           'studentId': _studentIdController.text,
           'createdAt': FieldValue.serverTimestamp(),
-          'status': 'pending',
+          'status': 'pending'
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -242,18 +268,12 @@ class _RegisterState extends State<Register> {
         _passwordController.clear();
         _confirmPasswordController.clear();
         _nameController.clear();
+        _lastNameController.clear();
         _studentIdController.clear();
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const Login()),
         );
-      } on FirebaseAuthException catch (e) {
-        setState(() {
-          print(e.code);
-          errorMessage = e.message;
-        });
-
-
       } on FirebaseAuthException catch (e) {
         setState(() {
           print(e.code);
@@ -331,12 +351,38 @@ class _RegisterState extends State<Register> {
                           ),
                           fillColor: Colors.grey.shade200,
                           filled: true,
-                          hintText: "Name",
+                          hintText: "First name",
                           hintStyle: TextStyle(color: Colors.grey.shade500),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please enter your name';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                      child: TextFormField(
+                        controller: _lastNameController,
+                        obscureText: false,
+                        decoration: InputDecoration(
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.green.shade400),
+                          ),
+                          fillColor: Colors.grey.shade200,
+                          filled: true,
+                          hintText: "Last name",
+                          hintStyle: TextStyle(color: Colors.grey.shade500),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your last name';
                           }
                           return null;
                         },
