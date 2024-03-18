@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:voter/pages/candidates.dart';
 import 'package:voter/pages/submitVotes.dart';
@@ -166,9 +169,306 @@ class _AvailableElectionsState extends State<AvailableElections> {
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+        margin: EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Elections", style: TextStyle(fontSize: 25, fontWeight: FontWeight.w500),),
+            Text("All current and previous elections", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),),
+            SizedBox(height: 20),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              itemCount: elections.length,
+              itemBuilder: (context, index) {
+                final election = elections[index];
+                String startDateString = election['election_start_date'];
+                String endDateString = election['election_end_date'];
+
+                DateFormat dateFormat = DateFormat('MM/dd/yyyy');
+                DateTime startDate = dateFormat.parse(startDateString);
+                DateTime endDate = dateFormat.parse(endDateString);
+                // check if end date is before today
+                bool isEnded = endDate.isBefore(DateTime.now());
+                bool isStarted = startDate.isBefore(DateTime.now());
+                bool released = election['results'];
+
+                String formattedDateRange = DateFormat('MMMM dd, yyyy').format(startDate) + ' - ' + DateFormat('MMMM dd, yyyy').format(endDate);
+
+                return GestureDetector(
+                    // onTap: (){
+                    //   Navigator.push(
+                    //     context,
+                    //     MaterialPageRoute(builder: (context) => ElectionDetails(election: election)),
+                    //   );
+                    // },
+                  // if its active, go to submit votes
+                  // if its ended, go to results
+                  // if its upcoming, go to apply candidate
+                  onTap: () {
+                    if (isEnded && released) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => Results(election: election,)),
+                      );
+                    } else if(isEnded && !released) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        backgroundColor: Colors.redAccent,
+                        content: Text('Results not released yet'),
+                        duration: Duration(seconds: 2),
+                      ));
+                    }
+                    else if (isStarted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ElectionDetails(election: election,)),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ApplyCandidate()),
+                      );
+                    }
+                  },
+                  child: Container(
+                    margin: EdgeInsets.only(bottom: 10),
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              election['election_name'],
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(isEnded ? 'Ended' : isStarted ? 'Active' : 'Upcoming', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isEnded ? Colors.red : isStarted ? Colors.green : Colors.blue),),
+
+                          ],
+                        ),
+
+                        SizedBox(height: 8),
+                        Text( formattedDateRange, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+
+                        Text(election['election_description']),
+                        // Text("Starts on March 2, 2024 at 08:00AM", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500)),
+                        // Text('Ends on March 5, 2024 at 11:59PM', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+    );
+  }
+}
+
+
+class Results extends StatefulWidget {
+  const Results({super.key, required this.election});
+
+  final Map<String, dynamic> election;
+
+  @override
+  State<Results> createState() => _ResultsState();
+}
+
+class _ResultsState extends State<Results> {
+
+  getResults() {
+    Map<String, dynamic> election = widget.election;
+    List<Widget> results = [];
+
+
+    for (var position in election['positions']) {
+      int totalVotes = 0;
+      election[position['position']].forEach((candidate, votes) {
+        totalVotes += votes as int;
+      });
+
+      double maxPercentage = 0;
+      String topCandidate = '';
+      election[position['position']].forEach((candidate, votes) {
+        double percentage = (votes / totalVotes) * 100;
+        if (percentage > maxPercentage) {
+          maxPercentage = percentage;
+          topCandidate = candidate;
+        }
+      });
+
+      results.add(
+        Text(position['position'], style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w600),),
+      );
+
+      for (var candidate in election[position['position']].keys) {
+        double percentage = (election[position['position']][candidate] / totalVotes) * 100;
+
+        results.add(
+          FutureBuilder(
+            future: FirebaseFirestore.instance.collection('applications').where('email', isEqualTo: candidate).get(),
+            builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
+              if (snapshot.hasError) {
+                return Text("Something went wrong");
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return CircularProgressIndicator();
+              }
+
+              if (snapshot.hasData) {
+                var application = snapshot.data!.docs[0].data() as Map<String, dynamic>;
+                return FutureBuilder(
+                  future: FirebaseFirestore.instance.collection('students').where('email', isEqualTo: candidate).get(),
+                  builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
+                    if (snapshot.hasError) {
+                      return Text("Something went wrong");
+                    }
+
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return CircularProgressIndicator();
+                    }
+
+                    if (snapshot.hasData) {
+                      var student = snapshot.data!.docs[0].data() as Map<String, dynamic>;
+                      Widget leadingWidget = SizedBox();
+                      if (candidate == topCandidate) {
+                        leadingWidget = Icon(Icons.star, color: Colors.yellow, size: 30);
+                      }
+                      return ListTile(
+                        trailing: leadingWidget,
+                        leading: CircleAvatar(
+                          radius: 30,
+                          backgroundImage: NetworkImage(application['passport_image']),
+                        ),
+                        title: Text('${student['name']} ${student['last_name']}', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${election[position['position']][candidate]} votes', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                            Text('${percentage.toStringAsFixed(2)}%', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                          ],
+                        ),
+                      );
+                    }
+                    return CircularProgressIndicator();
+                  },
+                );
+              }
+              return CircularProgressIndicator();
+            },
+          ),
+        );
+      }
+    }
+    return results;
+  }
+
+
+  Future<int> getTotalVotes() async {
+    QuerySnapshot<Map<String, dynamic>> votedVotersSnapshot = await FirebaseFirestore.instance.collection('voters').where('voted', isEqualTo: true).get();
+    return votedVotersSnapshot.size;
+  }
+
+  Future<int> getEligibleVoters() async {
+    QuerySnapshot<Map<String, dynamic>> approvedVotersSnapshot = await FirebaseFirestore.instance.collection('voters').where('status', isEqualTo: 'approved').get();
+    return approvedVotersSnapshot.size;
+  }
+
+
+
+  displayVotingRate() {
+    return FutureBuilder(
+      future: Future.wait([getTotalVotes(), getEligibleVoters()]),
+      builder: (BuildContext context, AsyncSnapshot<List<int>> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return CircularProgressIndicator();
+        }
+        if (snapshot.hasError) {
+          return Text("Error: ${snapshot.error}");
+        }
+        List<int> data = snapshot.data!;
+        int totalVotes = data[0];
+        int eligibleVoters = data[1];
+
+        return Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                    width: MediaQuery.of(context).size.width * 0.45,
+                    padding: EdgeInsets.all(30),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Total votes", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),),
+                        SizedBox(height: 10),
+                        Text(totalVotes.toString(), style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.w900),),
+                      ],
+                    )
+                ),
+                Container(
+                    width: MediaQuery.of(context).size.width * 0.45,
+                    padding: EdgeInsets.all(30),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Eligible Voters", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),),
+                        SizedBox(height: 10),
+                        Text(eligibleVoters.toString(), style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.w900),),
+                      ],
+                    )
+                )
+              ],
+            ),
+            SizedBox(height: 20),
+            Container(
+                padding: EdgeInsets.all(30),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Voting Rate", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),),
+                    SizedBox(height: 10),
+                    Text('${(totalVotes / eligibleVoters * 100).toStringAsFixed(2)}%', style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.w900),),
+                  ],
+                )
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Elections', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+        title: Text('Results', style: GoogleFonts.poppins(fontWeight: FontWeight.bold,),),
       ),
       body: SingleChildScrollView(
         child: SafeArea(
@@ -177,58 +477,18 @@ class _AvailableElectionsState extends State<AvailableElections> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Elections", style: TextStyle(fontSize: 25, fontWeight: FontWeight.w500),),
-                Text("All current and previous elections", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),),
+                displayVotingRate(),
                 SizedBox(height: 20),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: NeverScrollableScrollPhysics(),
-                  itemCount: elections.length,
-                  itemBuilder: (context, index) {
-                    final election = elections[index];
-                    return GestureDetector(
-                        onTap: (){
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => ElectionDetails(election: election)),
-                          );
-                        },
-                      child: Container(
-                        margin: EdgeInsets.only(bottom: 10),
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  election['election_name'],
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                //   active text and icon
-                                Icon(Icons.circle, color: Colors.green.shade400, size: 20),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            Text(election['election_description']),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+
+                getResults().length > 0 ? Column(
+                  children: getResults(),
+                ) : Container(),
+
+                SizedBox(height: 20),
               ],
             ),
           ),
-        ),
+        )
       ),
     );
   }

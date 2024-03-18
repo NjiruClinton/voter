@@ -196,7 +196,7 @@ class _CandidatesState extends State<Candidates> {
                                         title: Text("Read More"),
                                         content: Container(
                                           padding: EdgeInsets.all(10),
-                                          child: Column(
+                                        child: Column(
                                             children: [
                                               ListTile(
                                                 leading: CircleAvatar(
