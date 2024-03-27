@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'package:emailjs/emailjs.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -7,8 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:uuid/uuid.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import 'home.dart';
 
@@ -20,12 +18,8 @@ class ApplyCandidate extends StatefulWidget {
 }
 
 class _ApplyCandidateState extends State<ApplyCandidate> {
-  // one election data
-  //{election_end_date: 03/08/2024, election_name: Students General Election, positions: [{about: The school president, position: School Presidency}, {about: The school secretary general, position: Secretary General}, {about: The vice president, position: Vice President}], election_description: When you cast your vote for president, you tell your state’s electors to cast their votes for the candidate you chose. In Pennsylvania, each candidate for president chooses a list of electors., election_start_date: 03/04/2024}
 
-  // List<Map<String, dynamic>> elections = []; // supposed to be an object of election data
   var elections = [];
-  // List<Map<String, dynamic>> elections = [];
   @override
   void initState() {
     super.initState();
@@ -99,7 +93,7 @@ Future<void> getPositions() async {
                             children: [
                               ElevatedButton(
                                   style: ElevatedButton.styleFrom(
-                                    primary: Colors.blueAccent,
+                                    backgroundColor: Colors.blueAccent,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(10),
                                     ),
@@ -113,7 +107,7 @@ Future<void> getPositions() async {
                                   }),
                               ElevatedButton(
                                   style: ElevatedButton.styleFrom(
-                                    primary: Colors.blueAccent,
+                                    backgroundColor: Colors.blueAccent,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(10),
                                     ),
@@ -187,7 +181,7 @@ class ElectionItem extends StatelessWidget {
             children: [
               ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    primary: Colors.blueAccent,
+                    backgroundColor: Colors.blueAccent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -198,7 +192,7 @@ class ElectionItem extends StatelessWidget {
                   }),
               ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    primary: Colors.blueAccent,
+                    backgroundColor: Colors.blueAccent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -329,7 +323,6 @@ class ApplyForm extends StatefulWidget {
 class _ApplyFormState extends State<ApplyForm> {
 
   final _formKey = GlobalKey<FormState>();
-  // textControllers
   TextEditingController _whyController = TextEditingController();
   TextEditingController _plansController = TextEditingController();
 
@@ -341,25 +334,57 @@ class _ApplyFormState extends State<ApplyForm> {
   String? transcriptDownloadURL;
   String? passportImageDownloadURL;
 
-  Future<void> selectFile(String type) async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles();
+ Future<void> selectFile(String type) async {
+  List<String> allowedExtensions;
+  int maxFileSize = 5 * 1024 * 1024;
+  switch (type) {
+    case 'resume':
+    case 'transcript':
+      allowedExtensions = ['pdf'];
+      break;
+    case 'passport':
+      allowedExtensions = ['png', 'jpg', 'jpeg'];
+      break;
+    default:
+      allowedExtensions = [];
+      break;
+  }
 
-    if (result != null) {
-      File file = File(result.files.single.path!);
+  FilePickerResult? result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: allowedExtensions
+  );
 
-      switch (type) {
-        case 'resume':
+  if (result != null) {
+    File file = File(result.files.single.path!);
+    if (file.lengthSync() > maxFileSize) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selected file is too large. Please select a file smaller than 5MB.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+            backgroundColor: Colors.redAccent
+        ),
+      );
+      return;
+    }
+
+    switch (type) {
+      case 'resume':
+        setState(() {
           resumeFile = file;
-          break;
-        case 'transcript':
+        });
+        break;
+      case 'transcript':
+        setState(() {
           transcriptFile = file;
-          break;
-        case 'passport':
+        });
+        break;
+      case 'passport':
+        setState(() {
           passportImageFile = file;
-          break;
-      }
+        });
+        break;
     }
   }
+}
 
   Future<void> uploadFilesToFirebase() async {
     print("uploading...");
@@ -372,7 +397,6 @@ class _ApplyFormState extends State<ApplyForm> {
       await resumeUploadTask.whenComplete(() => null);
       resumeDownloadURL = await resumeRef.getDownloadURL();
     } else{
-      print("resume file is null");
       return;
     }
 
@@ -383,7 +407,6 @@ class _ApplyFormState extends State<ApplyForm> {
       await transcriptUploadTask.whenComplete(() => null);
       transcriptDownloadURL = await transcriptRef.getDownloadURL();
     } else{
-      print("transcript file is null");
       return;
     }
 
@@ -394,13 +417,25 @@ class _ApplyFormState extends State<ApplyForm> {
       await passportImageUploadTask.whenComplete(() => null);
       passportImageDownloadURL = await passportImageRef.getDownloadURL();
     } else{
-      print("passport image file is null");
       return;
     }
   }
 
-
+  bool _isApplying = false;
   void submitForm() async {
+    // check if files are there
+    if (resumeFile == null || transcriptFile == null || passportImageFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please upload all required files'), backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isApplying = true;
+    });
+    try {
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -409,39 +444,38 @@ class _ApplyFormState extends State<ApplyForm> {
       return;
     }
 
-    QuerySnapshot voterQuerySnapshot = await FirebaseFirestore.instance
-        .collection('voters')
-        .where('email', isEqualTo: user.email)
+
+DocumentSnapshot<Map<String, dynamic>> electionSnapshot =
+    await FirebaseFirestore.instance
+        .collection('elections')
+        .doc(widget.election['id'] as String)
         .get();
 
-    if (voterQuerySnapshot.docs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You are not authorized to apply')),
-      );
-      return;
-    }
+Map<String, dynamic>? voters = electionSnapshot.data()?['voters'] as Map<String, dynamic>?;
 
-    DocumentSnapshot voterDoc = voterQuerySnapshot.docs.first;
-
-    if (voterDoc.get('status') != 'approved') {
+if (voters != null) {
+  if (voters.containsKey(user.email)) {
+    if (voters[user.email]?['status'] != 'approved') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Your voter account is not approved yet')),
       );
       return;
     }
+  }
+}
 
+Map<String, dynamic>? applications = electionSnapshot.data()?['applications'] as Map<String, dynamic>?;
 
-    QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-        .collection('applications')
-        .where('email', isEqualTo: user.email)
-        .get();
-
-    if (querySnapshot.docs.isNotEmpty) {
+if (applications != null) {
+  for (var application in applications.values) {
+    if (application['email'] == user.email) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Student already applied')),
       );
       return;
     }
+  }
+}
 
     if (_formKey.currentState!.validate()) {
       await uploadFilesToFirebase();
@@ -449,38 +483,84 @@ class _ApplyFormState extends State<ApplyForm> {
       print('Transcript Download URL: $transcriptDownloadURL');
       print('Passport Image Download URL: $passportImageDownloadURL');
       print("submitting...");
-      try{
-      await FirebaseFirestore.instance.collection('applications').add({
-        'email': user.email,
-        'why': _whyController.text,
-        'plans': _plansController.text,
-        'position': widget.position['position'],
-        'election_id': widget.election['id'],
-        'resume': resumeDownloadURL,
-        'transcript': transcriptDownloadURL,
-        'passport_image': passportImageDownloadURL,
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Application submitted')),
-      );
-      _whyController.clear();
-      _plansController.clear();
-      resumeFile = null;
-      transcriptFile = null;
-      passportImageFile = null;
+        String? applicationId = user.email;
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => Home())
-      );
-      } catch (e) {
-        print('Error submitting application: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error submitting application')),
+        await FirebaseFirestore.instance
+            .collection('elections')
+            .doc(widget.election['id'] as String)
+            .set({
+          'applications': {
+            applicationId: {
+              'email': user.email,
+              'why': _whyController.text,
+              'plans': _plansController.text,
+              'position': widget.position['position'],
+              'resume': resumeDownloadURL,
+              'transcript': transcriptDownloadURL,
+              'passport_image': passportImageDownloadURL,
+              'status': 'pending',
+              'createdAt': FieldValue.serverTimestamp(),
+            }
+          }
+        }, SetOptions(merge: true));
+
+
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text("Application submitted", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),),
+              content: Text("You will be notified when your application is approved", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: Text('Close', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent),),
+                ),
+              ],
+            );
+          }
+        );
+
+        Map <String, dynamic> templateParams = {
+          'subject': 'Candidate Application',
+          'to_email': user.email,
+          'message': 'You have successfully applied for the position of ${widget.position['position']} in the ${widget.election['election_name']}',
+          'html': 'This is to confirm your application has been sent and will be reviewed shortly. You will be notified when your application is approved.',
+        };
+
+        await EmailJS.send(
+          'service_idoq2ho',
+          'template_3sjuysv',
+          templateParams,
+          const Options(
+            publicKey: '8wGz3AhpezFNPK6Re',
+        privateKey: 'IwlgAcY8plvpCv4cBVFR0',
+        ),
+        );
+
+
+        _whyController.clear();
+        _plansController.clear();
+        resumeFile = null;
+        transcriptFile = null;
+        passportImageFile = null;
+
+        Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => Home())
         );
       }
+    } catch (e) {
+    print('Error submitting application: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Error submitting application'), backgroundColor: Colors.redAccent,),
+    );
+    } finally {
+    setState(() {
+    _isApplying = false;
+    });
     }
   }
 
@@ -488,11 +568,17 @@ class _ApplyFormState extends State<ApplyForm> {
   Widget build(BuildContext context) {
     Map<String, dynamic> position = widget.position;
     Map<String, dynamic> election = widget.election;
+
+    String? transcriptName = transcriptFile != null ? transcriptFile!.path.split('/').last : null;
+    String? resumeName = resumeFile != null ? resumeFile!.path.split('/').last : null;
+    String? passportImageName = passportImageFile != null ? passportImageFile!.path.split('/').last : null;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Apply', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
       ),
       body: SingleChildScrollView(
+
         child: SafeArea(
           child: Container(
             margin: EdgeInsets.symmetric(horizontal: 20),
@@ -545,14 +631,32 @@ class _ApplyFormState extends State<ApplyForm> {
                         },
                       ),
                       SizedBox(height: 20),
-                      Text("Upload Documents", style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 25),),
+                      Text("Upload Documents(max 5mbs)", style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 25),),
                       SizedBox(height: 10),
                       GestureDetector(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text("Resume", style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w500),),
-                            Icon(Icons.attachment, size: 25,),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Resume(.pdf)", style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w500),),
+                                resumeName != null
+                                    ? Text(resumeName, style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500, color: Colors.blueAccent),)
+                                    : SizedBox(),
+                              ],
+                            ),
+                            if (resumeFile != null)
+                              Icon(
+                                Icons.check_circle,
+                                size: 25,
+                                color: Colors.green,
+                              )
+                            else
+                              Icon(
+                                Icons.attachment,
+                                size: 25,
+                              ),
                           ],
                         ),
                         onTap: () => selectFile('resume'),
@@ -562,8 +666,26 @@ class _ApplyFormState extends State<ApplyForm> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text("Transcript", style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w500),),
-                            Icon(Icons.attachment, size: 25,),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Transcript(.pdf)", style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w500),),
+                                transcriptName != null
+                                    ? Text(transcriptName, style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500, color: Colors.blueAccent),)
+                                    : SizedBox(),
+                              ],
+                            ),
+                            if (transcriptFile != null)
+                              Icon(
+                                Icons.check_circle,
+                                size: 25,
+                                color: Colors.green,
+                              )
+                            else
+                              Icon(
+                                Icons.attachment,
+                                size: 25,
+                              ),
                           ],
                         ),
                         onTap: () => selectFile('transcript'),
@@ -573,8 +695,26 @@ class _ApplyFormState extends State<ApplyForm> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text("Passport Image", style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w500),),
-                            Icon(Icons.attachment, size: 25,),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Passport Image(.png, .jpg, .jpeg)", style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w500),),
+                                passportImageName != null
+                                    ? Text(passportImageName, style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500, color: Colors.blueAccent),)
+                                    : SizedBox(),
+                              ],
+                            ),
+                            if (passportImageFile != null)
+                              Icon(
+                                Icons.check_circle,
+                                size: 25,
+                                color: Colors.green,
+                              )
+                            else
+                              Icon(
+                                Icons.attachment,
+                                size: 25,
+                              ),
                           ],
                         ),
                         onTap: () => selectFile('passport'),
@@ -586,20 +726,21 @@ class _ApplyFormState extends State<ApplyForm> {
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               padding: EdgeInsets.symmetric(vertical: 20),
-                              primary: Colors.blueAccent,
+                              backgroundColor: Colors.blueAccent,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
                             onPressed: () async{
-                              if (_formKey.currentState!.validate()) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Processing Data')),
-                                );
+                              if (_formKey.currentState!.validate() && !_isApplying) {
+                                // ScaffoldMessenger.of(context).showSnackBar(
+                                //   const SnackBar(content: Text('Processing Data')),
+                                // );
+
+                                submitForm();
                               }
-                              submitForm();
                             },
-                            child: Text('Submit', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),),
+                            child: _isApplying ? CircularProgressIndicator() : Text('Submit', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),),
                           ),
                         ),
                       ),
@@ -627,7 +768,11 @@ class ApplyVoter extends StatefulWidget {
 
 class _ApplyVoterState extends State<ApplyVoter> {
 
+  bool _isApplying = false;
   void applyAsVoter() async {
+    setState(() {
+      _isApplying = true;
+    });
 
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -637,39 +782,115 @@ class _ApplyVoterState extends State<ApplyVoter> {
       return;
     }
 
-    QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-        .collection('voters')
-        .where('email', isEqualTo: user.email)
-        .get();
+    try {
+      DocumentSnapshot<Map<String, dynamic>> electionSnapshot =
+      await FirebaseFirestore.instance
+          .collection('elections')
+          .doc(widget.election['id'] as String)
+          .get();
 
-    if (querySnapshot.docs.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You are already a voter')),
-      );
-      return;
-    }
+      Map<String, dynamic>? voters = electionSnapshot.data()?['voters'] as Map<String, dynamic>?;
 
-    try{
-      await FirebaseFirestore.instance.collection('voters').add({
-        'email': user.email,
-        'election_id': widget.election['id'],
+      if (voters == null) {
+        voters = {};
+      }
+
+
+      if (voters.containsKey(user.email)) {
+        return showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text("You have already applied", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),),
+                content: Text("You cannot apply again", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: Text('Close', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent),),
+                  ),
+                ],
+              );
+            }
+        );
+      }
+
+
+      voters[user.email ?? ''] = {
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Application submitted')),
+      };
+
+      await FirebaseFirestore.instance
+          .collection('elections')
+          .doc(widget.election['id'] as String)
+          .update({'voters': voters});
+
+      // await FirebaseFirestore.instance.collection('mail').add({
+      //   "to": [user.email],
+      //   'subject' : 'Voter Application',
+      //   'message': {
+      //     'text': 'You have successfully applied to vote in the ${widget.election['election_name']}',
+      //     'html': 'This is to confirm your voter application has been sent and will be reviewed shortly. <strong> You will be notified when your application is approved. </strong>',
+      //   }
+      //
+      // });
+
+      Map<String, dynamic> templateParams = {
+        'subject': 'Voter Application',
+        'to_email': user.email,
+        'message': 'You have successfully applied to vote in the ${widget.election['election_name']}',
+        'html': 'This is to confirm your voter application has been sent and will be reviewed shortly. You will be notified when your application is approved.',
+      };
+
+      await EmailJS.send(
+        'service_idoq2ho',
+        'template_3sjuysv',
+          templateParams,
+          const Options(
+            publicKey: '8wGz3AhpezFNPK6Re',
+            privateKey: 'IwlgAcY8plvpCv4cBVFR0',
+          ),
       );
+
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => Home())
+        MaterialPageRoute(builder: (context) => Home()),
       );
+
+      showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text("Application submitted", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),),
+              content: Text("You will be notified when your application is approved", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: Text('Close', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent),),
+                ),
+              ],
+            );
+          }
+      );
+
+
     } catch (e) {
       print('Error submitting application: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error submitting application')),
+        const SnackBar(content: Text('Error submitting application'), backgroundColor: Colors.redAccent,),
       );
+    } finally {
+      setState(() {
+        _isApplying = false;
+      });
     }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -694,18 +915,17 @@ class _ApplyVoterState extends State<ApplyVoter> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         padding: EdgeInsets.symmetric(vertical: 20),
-                        primary: Colors.blueAccent,
+                        backgroundColor: Colors.blueAccent,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Processing Data')),
-                        );
-                        applyAsVoter();
+                        if (!_isApplying) {
+                          applyAsVoter();
+                        }
                       },
-                      child: Text('Submit', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),),
+                      child: _isApplying ? CircularProgressIndicator() : Text('Submit', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),),
                     ),
                   ),
                 ),
@@ -718,3 +938,4 @@ class _ApplyVoterState extends State<ApplyVoter> {
     );
   }
 }
+

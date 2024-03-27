@@ -39,13 +39,10 @@ class _CandidatesState extends State<Candidates> {
 
 
   Future<void> fetchCandidates() async {
-    final applicationsQuery = FirebaseFirestore.instance
-        .collection('applications')
-        .where('election_id', isEqualTo: widget.election['id'])
-        .where('status', isEqualTo: 'approved')
-        .where('position', isEqualTo: widget.position);
 
-    List<QueryDocumentSnapshot> applications = await applicationsQuery.get().then((querySnapshot) => querySnapshot.docs);
+    final applications_data = widget.election['applications'] as Map<String, dynamic>;
+
+    final applications = applications_data.values.where((application) => application['status'] == 'approved' && application['position'] == widget.position).toList();
 
     candidates = [];
 

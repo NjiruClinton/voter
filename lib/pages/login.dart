@@ -23,8 +23,12 @@ class _LoginState extends State<Login> {
   final TextEditingController _passwordController = TextEditingController();
 
   String? errorMessage = '';
+  bool _isSigningIn = false;
 
   Future<void> signUserIn() async {
+    setState(() {
+      _isSigningIn = true;
+    });
 
     try {
       final authResult = await Auth().signInWithEmailAndPassword(
@@ -63,6 +67,10 @@ class _LoginState extends State<Login> {
       setState(() {
         print(e.code);
         errorMessage = e.message;
+      });
+    } finally {
+      setState(() {
+        _isSigningIn = false;
       });
     }
   }
@@ -184,7 +192,9 @@ class _LoginState extends State<Login> {
 
         GestureDetector(
           onTap: () {
-            signUserIn();
+            if (!_isSigningIn) {
+              signUserIn();
+            }
           },
           child: Container(
               padding: EdgeInsets.all(25),
@@ -192,10 +202,16 @@ class _LoginState extends State<Login> {
               decoration: BoxDecoration(color: Colors.black,
                   borderRadius: BorderRadius.circular(8)),
               child: Center(
-                  child: Text(
+                  child:  _isSigningIn
+                      ? CircularProgressIndicator() // Show CircularProgressIndicator when signing in
+                      : Text(
                     "Sign In",
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                  )
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
               )
           ),
         ),

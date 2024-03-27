@@ -40,7 +40,6 @@ class _ElectionDetailsState extends State<ElectionDetails> {
     setState(() {
       currentVotes = currentVotes;
     });
-    // print(currentVotes);
   }
 
 
@@ -62,7 +61,7 @@ class _ElectionDetailsState extends State<ElectionDetails> {
         margin: EdgeInsets.all(10),
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-            primary: Colors.blueAccent,
+            backgroundColor: Colors.blueAccent,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
@@ -70,7 +69,7 @@ class _ElectionDetailsState extends State<ElectionDetails> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => SubmitVotes()),
+              MaterialPageRoute(builder: (context) => SubmitVotes(election_id: election['id'])),
             );
           },
           child: Center(
@@ -100,6 +99,11 @@ class _ElectionDetailsState extends State<ElectionDetails> {
                     final position = election['positions'][index];
                     bool votedFor = currentVotes.any((vote) => vote.contains(position['position']));
 
+                    final applications_data = widget.election['applications'] as Map<String, dynamic>;
+                    final approvedApplications = applications_data.values.where((application) => application['position'] == position['position'] && application['status'] == 'approved').toList();
+
+
+
                     return GestureDetector(
                       child: ListTile(
                         trailing: votedFor ? Icon(Icons.check_circle, color: Colors.green, size: 30,) : null,
@@ -117,12 +121,12 @@ class _ElectionDetailsState extends State<ElectionDetails> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(position['about'], style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
-                            Text('2 candidates', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                            Text('${approvedApplications.length} candidates', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
                           ],
                         ),
                       ),
                       onTap: () {
-                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => Candidates(position: position['position'], election: election,)));
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => Candidates(position: position['position'], election: election,)));
                       },
                     );
                   }, separatorBuilder: (BuildContext context, int index) { return Divider(); },
@@ -147,7 +151,7 @@ class AvailableElections extends StatefulWidget {
 
 class _AvailableElectionsState extends State<AvailableElections> {
   var elections = [];
-  // List<Map<String, dynamic>> elections = [];
+
   @override
   void initState() {
     super.initState();
@@ -189,7 +193,7 @@ class _AvailableElectionsState extends State<AvailableElections> {
                 DateFormat dateFormat = DateFormat('MM/dd/yyyy');
                 DateTime startDate = dateFormat.parse(startDateString);
                 DateTime endDate = dateFormat.parse(endDateString);
-                // check if end date is before today
+
                 bool isEnded = endDate.isBefore(DateTime.now());
                 bool isStarted = startDate.isBefore(DateTime.now());
                 bool released = election['results'];
@@ -197,15 +201,6 @@ class _AvailableElectionsState extends State<AvailableElections> {
                 String formattedDateRange = DateFormat('MMMM dd, yyyy').format(startDate) + ' - ' + DateFormat('MMMM dd, yyyy').format(endDate);
 
                 return GestureDetector(
-                    // onTap: (){
-                    //   Navigator.push(
-                    //     context,
-                    //     MaterialPageRoute(builder: (context) => ElectionDetails(election: election)),
-                    //   );
-                    // },
-                  // if its active, go to submit votes
-                  // if its ended, go to results
-                  // if its upcoming, go to apply candidate
                   onTap: () {
                     if (isEnded && released) {
                       Navigator.push(
@@ -222,16 +217,12 @@ class _AvailableElectionsState extends State<AvailableElections> {
                     else if (isStarted) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => ElectionDetails(election: election,)),
-                      );
-                    } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ApplyCandidate()),
+                        MaterialPageRoute(builder: (context) =>
+                            ElectionDetails(election: election,)),
                       );
                     }
                   },
-                  child: Container(
+                  child: !isStarted ? Container(
                     margin: EdgeInsets.only(bottom: 10),
                     padding: EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -260,8 +251,72 @@ class _AvailableElectionsState extends State<AvailableElections> {
                         Text( formattedDateRange, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
 
                         Text(election['election_description']),
-                        // Text("Starts on March 2, 2024 at 08:00AM", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w500)),
-                        // Text('Ends on March 5, 2024 at 11:59PM', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                        SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blueAccent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: Text("Apply as a voter", style: GoogleFonts.poppins( fontWeight: FontWeight.bold, color: Colors.white),),
+                                onPressed: (){
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => ApplyVoter(election: election)),
+                                  );
+                                }),
+                            ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blueAccent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: Text("Apply for candidacy", style: GoogleFonts.poppins( fontWeight: FontWeight.bold, color: Colors.white),),
+                                onPressed: (){
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => ChoosePosition(election: election)),
+                                  );
+                                  })
+                            ],
+                          ),
+                        ],
+                      ),
+                  ) : Container(
+                    margin: EdgeInsets.only(bottom: 10),
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              election['election_name'],
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(isEnded ? 'Ended' : isStarted ? 'Active' : 'Upcoming', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isEnded ? Colors.red : isStarted ? Colors.green : Colors.blue),),
+
+                          ],
+                        ),
+
+                        SizedBox(height: 8),
+                        Text( formattedDateRange, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+
+                        Text(election['election_description']),
+                        SizedBox(height: 8),
                       ],
                     ),
                   ),
@@ -375,93 +430,93 @@ class _ResultsState extends State<Results> {
   }
 
 
-  Future<int> getTotalVotes() async {
-    QuerySnapshot<Map<String, dynamic>> votedVotersSnapshot = await FirebaseFirestore.instance.collection('voters').where('voted', isEqualTo: true).get();
-    return votedVotersSnapshot.size;
-  }
+ int getTotalVotes() {
+  int totalVotes = 0;
+  Map<String, dynamic> voters = widget.election['voters'];
+  voters.forEach((key, value) {
+    if (value['voted'] == true) {
+      totalVotes++;
+    }
+  });
+  return totalVotes;
+}
 
-  Future<int> getEligibleVoters() async {
-    QuerySnapshot<Map<String, dynamic>> approvedVotersSnapshot = await FirebaseFirestore.instance.collection('voters').where('status', isEqualTo: 'approved').get();
-    return approvedVotersSnapshot.size;
-  }
+int getEligibleVoters() {
+  int eligibleVoters = 0;
+  Map<String, dynamic> voters = widget.election['voters'];
+  voters.forEach((key, value) {
+    if (value['status'] == 'approved') {
+      eligibleVoters++;
+    }
+  });
+  return eligibleVoters;
+}
 
 
 
   displayVotingRate() {
-    return FutureBuilder(
-      future: Future.wait([getTotalVotes(), getEligibleVoters()]),
-      builder: (BuildContext context, AsyncSnapshot<List<int>> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return CircularProgressIndicator();
-        }
-        if (snapshot.hasError) {
-          return Text("Error: ${snapshot.error}");
-        }
-        List<int> data = snapshot.data!;
-        int totalVotes = data[0];
-        int eligibleVoters = data[1];
+  int totalVotes = getTotalVotes();
+  int eligibleVoters = getEligibleVoters();
 
-        return Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                    width: MediaQuery.of(context).size.width * 0.45,
-                    padding: EdgeInsets.all(30),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Total votes", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),),
-                        SizedBox(height: 10),
-                        Text(totalVotes.toString(), style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.w900),),
-                      ],
-                    )
-                ),
-                Container(
-                    width: MediaQuery.of(context).size.width * 0.45,
-                    padding: EdgeInsets.all(30),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Eligible Voters", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),),
-                        SizedBox(height: 10),
-                        Text(eligibleVoters.toString(), style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.w900),),
-                      ],
-                    )
-                )
-              ],
-            ),
-            SizedBox(height: 20),
-            Container(
-                padding: EdgeInsets.all(30),
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Voting Rate", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),),
-                    SizedBox(height: 10),
-                    Text('${(totalVotes / eligibleVoters * 100).toStringAsFixed(2)}%', style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.w900),),
-                  ],
-                )
-            ),
-          ],
-        );
-      },
-    );
-  }
+  return Column(
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Container(
+              width: MediaQuery.of(context).size.width * 0.45,
+              padding: EdgeInsets.all(30),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Total votes", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),),
+                  SizedBox(height: 10),
+                  Text(totalVotes.toString(), style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.w900),),
+                ],
+              )
+          ),
+          Container(
+              width: MediaQuery.of(context).size.width * 0.45,
+              padding: EdgeInsets.all(30),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Eligible Voters", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),),
+                  SizedBox(height: 10),
+                  Text(eligibleVoters.toString(), style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.w900),),
+                ],
+              )
+          )
+        ],
+      ),
+      SizedBox(height: 20),
+      Container(
+          padding: EdgeInsets.all(30),
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Voting Rate", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),),
+              SizedBox(height: 10),
+              Text('${(totalVotes / eligibleVoters * 100).toStringAsFixed(2)}%', style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.w900),),
+            ],
+          )
+      ),
+    ],
+  );
+}
 
 
   @override

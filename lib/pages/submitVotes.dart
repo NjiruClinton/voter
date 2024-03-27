@@ -10,7 +10,9 @@ import 'electiondetails.dart';
 import 'home.dart';
 
 class SubmitVotes extends StatefulWidget {
-  const SubmitVotes({super.key});
+  const SubmitVotes({super.key, required this.election_id});
+
+  final String election_id;
 
   @override
   State<SubmitVotes> createState() => _SubmitVotesState();
@@ -27,45 +29,58 @@ class _SubmitVotesState extends State<SubmitVotes> {
   }
 
 
-  Future<void> _loadVotesFromSharedPreferences() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final List<String>? votesStringList = prefs.getStringList('votes');
-    if (votesStringList != null) {
-      currentVotes = votesStringList;
-    }
-    setState(() {
-      currentVotes = currentVotes;
-    });
-    // print(currentVotes);
+ Future<void> _loadVotesFromSharedPreferences() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  final List<String>? votesStringList = prefs.getStringList('votes');
+  if (votesStringList != null) {
+    currentVotes = votesStringList.where((vote) {
+      Map<String, dynamic> voteData = jsonDecode(vote);
+      return voteData['election_id'] == widget.election_id;
+    }).toList();
   }
+  setState(() {
+    currentVotes = currentVotes;
+  });
+  print(currentVotes);
+}
 
 
   Future<void> _submitVotes() async {
     final election_id = jsonDecode(currentVotes[0])['election_id'];
-    final election = await FirebaseFirestore.instance.collection('elections').doc(election_id).get();
-    // print(election.data());
 
     final user = FirebaseAuth.instance.currentUser;
-    final voterDoc = await FirebaseFirestore.instance.collection('voters').where('email', isEqualTo: user?.email).get();
-    if (voterDoc.docs[0].data()['voted'] == true) {
+
+    final electionDoc = await FirebaseFirestore.instance.collection('elections')
+        .doc(election_id)
+        .get();
+    final votersData = electionDoc.data()?['voters'] as Map<String, dynamic>?;
+
+    if (votersData != null && votersData.containsKey(user?.email)) {
+      final voted = votersData[user?.email]['voted'];
+      if (voted != null && voted) {
       showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text("You have already voted", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),),
-            content: Text("You cannot vote again", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: Text('Close', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent),),
-              ),
-            ],
-          );
-        }
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text("You have already voted", style: GoogleFonts.poppins(
+                  fontSize: 20, fontWeight: FontWeight.bold),),
+              content: Text("You cannot vote again", style: GoogleFonts.poppins(
+                  fontSize: 16, fontWeight: FontWeight.w500),),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: Text('Close', style: GoogleFonts.poppins(fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueAccent),),
+                ),
+              ],
+            );
+          }
       );
       return;
+    }
     }
 
 
@@ -101,12 +116,16 @@ class _SubmitVotesState extends State<SubmitVotes> {
       }
     }
 
-    final voter = await FirebaseFirestore.instance.collection('voters').where('email', isEqualTo: user?.email).get();
-    voter.docs.forEach((doc) {
-      doc.reference.update({
+
+if (votersData != null && votersData.containsKey(user?.email)) {
+  electionDoc.reference.set({
+    'voters': {
+      user?.email: {
         'voted': true
-      });
-    });
+      }
+    }
+  }, SetOptions(merge: true));
+}
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -139,7 +158,7 @@ class _SubmitVotesState extends State<SubmitVotes> {
             children: [
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  primary: Colors.grey.shade200,
+                  backgroundColor: Colors.grey.shade200,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -156,7 +175,7 @@ class _SubmitVotesState extends State<SubmitVotes> {
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  primary: Colors.blueAccent,
+                  backgroundColor: Colors.blueAccent,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -208,7 +227,6 @@ class _SubmitVotesState extends State<SubmitVotes> {
                 SizedBox(height: 20),
                 Text("Your vote is final and cannot be changed. Are you sure you want to submit it?", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),),
               SizedBox(height: 20),
-              //   listTile with position and the candidate selected
                 ListView.separated(
                   shrinkWrap: true,
                   physics: NeverScrollableScrollPhysics(),

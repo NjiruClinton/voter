@@ -1,12 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:voter/pages/apply_candidate.dart';
 import 'package:voter/pages/electiondetails.dart';
 import 'package:voter/pages/login.dart';
+
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -19,32 +21,23 @@ class _HomeState extends State<Home> {
 
 
   final FirebaseAuth auth = FirebaseAuth.instance;
-
-  Widget _positionCard(){
-    return(
-
-        //   listtile with position eg Undergraduate Student Government (USG) then a subtitle for voting ends in 3 days then an image at the right side
-
-        ListTile(
-          title: Text('Undergraduate Student Government (USG)', style: GoogleFonts.lato(fontSize: 24, fontWeight: FontWeight.bold),),
-          subtitle: Text('Voting ends in 3 days', style: GoogleFonts.lato(fontSize: 15, fontWeight: FontWeight.w500),),
-          trailing: Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              image: DecorationImage(
-                image: AssetImage('assets/images/uni.jpg'),
-                fit: BoxFit.fill,
-              ),
-            ),
-          ),
-          onTap: () {
-            // navigate to the voting page
-          },
-        )
-    );
-  }
+  // final _messageStreamController = BehaviorSubject<RemoteMessage>();
+  // String ?_lastMessage = "";
+  //
+  // _HomeState() {
+  //   _messageStreamController.listen((message) {
+  //     setState(() {
+  //       if (message.notification != null) {
+  //         _lastMessage = 'Received a notification message:'
+  //             '\nTitle=${message.notification?.title},'
+  //             '\nBody=${message.notification?.body},'
+  //             '\nData=${message.data}';
+  //       } else {
+  //         _lastMessage = 'Received a data message: ${message.data}';
+  //       }
+  //     });
+  //   });
+  // }
 
 
   final User? user = FirebaseAuth.instance.currentUser;
@@ -66,7 +59,7 @@ class _HomeState extends State<Home> {
 
       if (snapshot.docs.isNotEmpty) {
         setState(() {
-          _name = snapshot.docs.first.data()['name']; // Assuming 'name' is the field in your Firestore document
+          _name = snapshot.docs.first.data()['name'];
         });
       }
     }
@@ -83,7 +76,6 @@ class _HomeState extends State<Home> {
       );
     }
 
-    // remove shared preferences 'votes' data
     Future<void> removeData() async {
       final prefs = await SharedPreferences.getInstance();
       prefs.remove('votes');
@@ -94,37 +86,11 @@ class _HomeState extends State<Home> {
         appBar: AppBar(
           title: Text('Students Elections', style: GoogleFonts.poppins(fontWeight: FontWeight.bold),),
         ),
-        // floatingActionButtonLocation:
-        // FloatingActionButtonLocation.centerFloat,
-        // floatingActionButton: Container(
-        //   decoration: BoxDecoration(
-        //     color: Colors.deepPurple,
-        //     borderRadius: BorderRadius.circular(10),
-        //   ),
-        //   height: 50,
-        //   margin: EdgeInsets.all(10),
-        //   child: ElevatedButton(
-        //     style: ElevatedButton.styleFrom(
-        //       primary: Colors.blueAccent,
-        //       shape: RoundedRectangleBorder(
-        //         borderRadius: BorderRadius.circular(10),
-        //       ),
-        //     ),
-        //     onPressed: () {
-        //       Navigator.push(
-        //         context,
-        //         MaterialPageRoute(builder: (context) => AvailableElections()),
-        //       );
-        //     },
-        //     child: Center(
-        //       child: Text('Vote now', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),),
-        //     ),
-        //   ),
-        // ),
-
         drawer: Drawer(
           child: ListView(
             children: [
+              // notification snackbar
+
               ListTile(
                 title: Text('Home', style: GoogleFonts.poppins(),),
                 onTap: () {
@@ -134,15 +100,6 @@ class _HomeState extends State<Home> {
                   );
                 },
               ),
-              // ListTile(
-              //   title: Text('Elections', style: GoogleFonts.poppins(),),
-              //   onTap: () {
-              //     Navigator.push(
-              //       context,
-              //       MaterialPageRoute(builder: (context) => ApplyCandidate()),
-              //     );
-              //   },
-              // ),
               ListTile(
                 title: Text('About', style: GoogleFonts.poppins(),),
                 onTap: () {
@@ -184,32 +141,13 @@ class _HomeState extends State<Home> {
                   ),
                 ),
                 SizedBox(height: 20,),
+
                 Center(
                   child:
                   Text( _name != null ? 'Welcome, ${_name}' : 'Welcome',
                     style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w500),),
                 ),
                 SizedBox(height: 20,),
-
-                // Container(
-                //   margin: EdgeInsets.symmetric(horizontal: 20),
-                //     child: Text("Date & Time", style: GoogleFonts.poppins(fontSize: 25, fontWeight: FontWeight.w600),)),
-                // ListTile(
-                //   leading: Container(
-                //     // margin: EdgeInsets.all(20),
-                //     height: 60,
-                //     width: 60,
-                //     decoration: BoxDecoration(
-                //       color: Colors.grey.shade200,
-                //       borderRadius: BorderRadius.circular(10),
-                //     ),
-                //     child: Icon(Icons.calendar_today, size: 40),
-                //   ),
-                //   title: Text("Starts on March 2, 2024 at 08:00AM", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600)),
-                //   subtitle: Text('Ends on March 5, 2024 at 11:59PM', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
-                // ),
-                // SizedBox(height: 20,),
-                // Text("Voting ends in 3 days", style: GoogleFonts.lato(fontSize: 20, fontWeight: FontWeight.bold),),
                 SizedBox(height: 20,),
 
                 AvailableElections(),
